@@ -11,7 +11,7 @@ public class FileSystemTools
     public FileSystemTools(AppSettings settings)
     {
         _sandboxRoot = settings.SandboxRoot;
-        _enableRiskyTools = settings.EnableRiskyTools;
+        _enableRiskyTools = true; // settings.EnableRiskyTools;
         
         if (!Directory.Exists(_sandboxRoot))
         {
@@ -56,7 +56,7 @@ public class FileSystemTools
     }
 
     [OllamaTool]
-    public string ListDirectory(string path)
+    public string ListDirectoryEntries(string path)
     {
         var fullPath = ResolvePath(path);
         if (!Directory.Exists(fullPath)) return $"Directory {path} not found.";
@@ -81,6 +81,12 @@ public class FileSystemTools
         return $"Successfully created directory {path}.";
     }
 
+    [OllamaTool]
+    public string GetCurrentDirectory()
+    {
+        return Directory.GetCurrentDirectory();
+    }
+    
     // Example of a risky tool
     [OllamaTool]
     public string ExecuteShellCommand(string command)

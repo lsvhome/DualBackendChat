@@ -402,3 +402,4 @@ FodyWeavers.xsd
 _site/
 api/
 /.git
+.idea

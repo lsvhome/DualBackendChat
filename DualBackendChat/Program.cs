@@ -1,8 +1,10 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using DualBackendChat;
 using DualBackendChat.Services;
 using DualBackendChat.Tools;
+using Microsoft.Extensions.AI;
 
 namespace DualBackendChat;
 
@@ -74,8 +76,39 @@ class Program
 
             try
             {
-                string response = await chatEngine.SendMessageAsync(input);
-                Console.WriteLine($"\nAssistant > {response}");
+                chatEngine.OnTextContent += (sender, args) =>
+                {
+                    Console.WriteLine($"\nAssistant > {args.Parameter.Text}");
+                    return Task.CompletedTask;
+                };
+                
+                chatEngine.OnFunctionCallContent += async (sender, args) =>
+                {
+                    ContentEventArgs<FunctionCallContent> eventArgs = (ContentEventArgs<FunctionCallContent>)args;
+                    
+                    ChatEngine senderEngine = (ChatEngine)sender;
+                    try
+                    {
+                        Console.WriteLine($"\nRequested function call {eventArgs.Parameter.Name}");
+                        var fff = tools.Single(t => t.Metadata.Name == eventArgs.Parameter.Name);
+                        var ggg = await fff.InvokeAsync(eventArgs.Parameter.Arguments);
+                        var gggasda = new FunctionResultContent(eventArgs.Parameter, ggg, null);
+                        Console.WriteLine($"\nRequested function result is  {ggg}");
+                        await senderEngine.SendMessageAsync(new ChatMessage(ChatRole.Tool, new[] { gggasda }));
+
+                    }
+                    catch (Exception ex)
+                    {
+                        var gggasda = new FunctionResultContent(eventArgs.Parameter, null, ex);
+                        await senderEngine.SendMessageAsync(new ChatMessage(ChatRole.Tool, new[] { gggasda }));
+
+                    }
+                    
+                };
+
+                Console.WriteLine($"\nAssistant >");
+                await chatEngine.SendMessageAsync(input);
+                await Task.Delay(TimeSpan.FromSeconds(60));
             }
             catch (Exception ex)
             {

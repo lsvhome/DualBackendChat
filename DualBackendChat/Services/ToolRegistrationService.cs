@@ -27,9 +27,9 @@ public class SimpleAIFunction : AIFunction
 
 public class ToolRegistrationService
 {
-    public List<AIFunction> RegisterTools(object toolInstance)
+    public List<SimpleAIFunction> RegisterTools(object toolInstance)
     {
-        var functions = new List<AIFunction>();
+        var functions = new List<SimpleAIFunction>();
         var methods = toolInstance.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance);
 
         foreach (var method in methods)

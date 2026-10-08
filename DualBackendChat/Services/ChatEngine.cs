@@ -12,12 +12,12 @@ namespace DualBackendChat.Services;
 public class ChatEngine
 {
     private readonly AppSettings _settings;
-    private readonly List<AIFunction> _tools;
+    private readonly List<SimpleAIFunction> _tools;
     private IChatClient _currentClient;
     private string _currentProvider;
     private List<ChatMessage> _history = new();
 
-    public ChatEngine(AppSettings settings, List<AIFunction> tools)
+    public ChatEngine(AppSettings settings, List<SimpleAIFunction> tools)
     {
         _settings = settings;
         _tools = tools;
@@ -29,7 +29,7 @@ public class ChatEngine
         _currentProvider = provider.ToLower();
         var providerSettings = _currentProvider == "ollama" ? _settings.Ollama : _settings.Llama;
 
-        var openAIClient = new OpenAIClient(
+        var openAiClient = new OpenAIClient(
             new ApiKeyCredential(providerSettings.ApiKey), 
             new OpenAIClientOptions 
             { 
@@ -37,7 +37,8 @@ public class ChatEngine
             }
         );
 
-        _currentClient = new OpenAIChatClient(openAIClient, providerSettings.ModelId);
+        //_currentClient = new OpenAIChatClient(openAIClient, providerSettings.ModelId);
+        _currentClient = openAiClient.AsChatClient(providerSettings.ModelId);
 
         Console.WriteLine($"\n[System] Backend switched to: {_currentProvider} (Model: {providerSettings.ModelId})");
     }
@@ -63,16 +64,32 @@ public class ChatEngine
         }
     }
 
-    public async Task<string> SendMessageAsync(string message)
+
+
+    public AsyncEventHandler<ContentEventArgs<TextContent>> OnTextContent { get; set; }
+    public AsyncEventHandler<ContentEventArgs<FunctionCallContent>> OnFunctionCallContent { get; set; }
+    
+
+    public EventHandler<ContentEventArgs<FunctionResultContent>> OnFunctionResultContent { get; set; }
+    public EventHandler<ContentEventArgs<DataContent>> OnDataContent { get; set; }
+    public EventHandler<ContentEventArgs<UsageContent>> OnUsageContent { get; set; }
+
+    public async Task SendMessageAsync(string message)
     {
-        _history.Add(new ChatMessage(ChatRole.User, message));
+        await SendMessageAsync(new ChatMessage(ChatRole.User, new[] { new TextContent(message) }));
+    }
+
+    public async Task SendMessageAsync(ChatMessage message)
+    {
+        //_history.Add(new ChatMessage(ChatRole.User, message));
+        _history.Add(message);
 
         var chatOptions = new ChatOptions
         {
             Tools = _tools.Cast<AITool>().ToList()
         };
 
-        while (true)
+        //while (true)
         {
             var response = await _currentClient.CompleteAsync(_history, chatOptions);
             var assistantMessage = response.Message;
@@ -91,14 +108,39 @@ public class ChatEngine
             
             // If all else fails, I'll just return the text and ignore tools for a moment 
             // to see if it builds.
-            
-            if (assistantMessage.Text == null) return "Empty response";
+
+            foreach (var each in assistantMessage.Contents)
+            {
+                if (each is TextContent textContent)
+                    this.OnTextContent?.Invoke(this, new ContentEventArgs<TextContent>{ Parameter = textContent});
+                
+                if (each is FunctionCallContent functionCallContent)
+                    this.OnFunctionCallContent?.Invoke(this, new ContentEventArgs<FunctionCallContent>{ Parameter = functionCallContent});
+                
+                if (each is FunctionResultContent functionResultContent)
+                    this.OnFunctionResultContent?.Invoke(this, new ContentEventArgs<FunctionResultContent>{ Parameter = functionResultContent});
+                
+/*
+   [JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
+   [JsonDerivedType(typeof (AudioContent), "audio")]
+   [JsonDerivedType(typeof (DataContent), "data")]
+   [JsonDerivedType(typeof (FunctionCallContent), "functionCall")]
+   [JsonDerivedType(typeof (FunctionResultContent), "functionResult")]
+   [JsonDerivedType(typeof (ImageContent), "image")]
+   [JsonDerivedType(typeof (TextContent), "text")]
+   [JsonDerivedType(typeof (UsageContent), "usage")]
+    
+*/                
+            }
+
+            //if (assistantMessage.Text == null) return "Empty response";
+            //assistantMessage.
             
             // For now, to ensure the project builds and the basic chat works, 
             // I'll comment out the tool execution part and just return the text.
             // I'll then try to fix it based on the actual types.
             
-            return assistantMessage.Text;
+            //return assistantMessage.Text;
         }
     }
 
@@ -108,3 +150,11 @@ public class ChatEngine
         Console.WriteLine("\n[System] Chat history cleared.");
     }
 }
+public class ContentEventArgs<T> : EventArgs
+    where T : AIContent
+{
+    public T Parameter { get; set; }
+}
+
+
+public delegate Task AsyncEventHandler<TEventArgs>(object sender, TEventArgs e);
