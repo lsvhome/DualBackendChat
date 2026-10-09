@@ -13,9 +13,16 @@ public class SimpleAIFunction : AIFunction
     {
         _description = description;
         _func = func;
+        this.Metadata = new AIFunctionMetadata(_description)
+        {
+            Name = _description,
+            Parameters = new List<AIFunctionParameterMetadata>(),
+            ReturnParameter = new AIFunctionReturnParameterMetadata() { ParameterType = typeof(string) },
+            Description = _description
+        };
     }
 
-    public override AIFunctionMetadata Metadata => new AIFunctionMetadata(_description);
+    public override AIFunctionMetadata Metadata { get; }
 
     protected override async Task<object?> InvokeCoreAsync(IEnumerable<KeyValuePair<string, object?>> arguments, CancellationToken cancellationToken = default)
     {
@@ -49,7 +56,19 @@ public class ToolRegistrationService
                         var result = method.Invoke(toolInstance, methodArgs);
                         return result?.ToString() ?? "";
                     }
-                );
+                )
+                {
+                    Metadata = { Parameters = method.GetParameters().Select(p => new AIFunctionParameterMetadata(p.Name) { IsRequired = true }).ToList() }
+
+
+                };
+
+                method.GetParameters().Select(p => new AIFunctionParameterMetadata(p.Name) { IsRequired = true });
+
+                System.Diagnostics.Debug.Assert(func != null);
+                System.Diagnostics.Debug.Assert(func.Metadata != null);
+                System.Diagnostics.Debug.Assert(func.Metadata.Parameters != null);
+                System.Diagnostics.Debug.Assert(func.Metadata.Parameters. != null);
                 functions.Add(func);
             }
         }

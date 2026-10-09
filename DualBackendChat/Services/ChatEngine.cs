@@ -11,7 +11,6 @@ namespace DualBackendChat.Services;
 
 public class ChatEngine
 {
-
     static volatile int counter = 0;
     static ManualResetEventSlim resetEvent = new ManualResetEventSlim(false);
 
@@ -51,7 +50,7 @@ public class ChatEngine
     {
         _settings = settings;
         _tools = tools;
-        SetProvider("ollama");
+        SetProvider("llama");
     }
 
     public void SetProvider(string provider)
@@ -63,7 +62,8 @@ public class ChatEngine
             new ApiKeyCredential(providerSettings.ApiKey),
             new OpenAIClientOptions
             {
-                Endpoint = new Uri(providerSettings.BaseUrl)
+                Endpoint = new Uri(providerSettings.BaseUrl),
+                NetworkTimeout = TimeSpan.FromDays(1) // infinite :-)
             }
         );
 

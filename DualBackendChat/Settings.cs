@@ -12,7 +12,8 @@ public class AppSettings
     public ProviderSettings Llama { get; set; } = new()
     {
         BaseUrl = "http://localhost:8080/v1",
-        ModelId = "llama-model",
+        //ModelId = "llama-model",
+        ModelId = "unsloth/gemma-4-31B-it-GGUF",
         ApiKey = "llama"
     };
 
