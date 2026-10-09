@@ -11,6 +11,36 @@ namespace DualBackendChat.Services;
 
 public class ChatEngine
 {
+
+    static volatile int counter = 0;
+    static ManualResetEventSlim resetEvent = new ManualResetEventSlim(false);
+
+    private static void Increase()
+    {
+        if (Interlocked.Increment(ref counter) == 1)
+        {
+            resetEvent.Reset();
+        }
+    }
+
+    private static void Decrease()
+    {
+        if (Interlocked.Decrement(ref counter) == 0)
+        {
+            resetEvent.Set();
+        }
+    }
+
+    private static void Wait()
+    {
+        resetEvent.Wait();
+    }
+
+    private static async Task WaitUntilAllrequestsCompleted()
+    {
+        await Task.Run(() => resetEvent.Wait());
+    }
+
     private readonly AppSettings _settings;
     private readonly List<SimpleAIFunction> _tools;
     private IChatClient _currentClient;
@@ -30,10 +60,10 @@ public class ChatEngine
         var providerSettings = _currentProvider == "ollama" ? _settings.Ollama : _settings.Llama;
 
         var openAiClient = new OpenAIClient(
-            new ApiKeyCredential(providerSettings.ApiKey), 
-            new OpenAIClientOptions 
-            { 
-                Endpoint = new Uri(providerSettings.BaseUrl) 
+            new ApiKeyCredential(providerSettings.ApiKey),
+            new OpenAIClientOptions
+            {
+                Endpoint = new Uri(providerSettings.BaseUrl)
             }
         );
 
@@ -68,11 +98,14 @@ public class ChatEngine
 
     public AsyncEventHandler<ContentEventArgs<TextContent>> OnTextContent { get; set; }
     public AsyncEventHandler<ContentEventArgs<FunctionCallContent>> OnFunctionCallContent { get; set; }
-    
-
     public EventHandler<ContentEventArgs<FunctionResultContent>> OnFunctionResultContent { get; set; }
     public EventHandler<ContentEventArgs<DataContent>> OnDataContent { get; set; }
     public EventHandler<ContentEventArgs<UsageContent>> OnUsageContent { get; set; }
+    public EventHandler<ContentEventArgs<ImageContent>> OnImageContent { get; set; }
+    public EventHandler<ContentEventArgs<AudioContent>> OnAudioContent { get; set; }
+
+    //public EventHandler<ContentEventArgs<AIContent>> OnAIContent { get; set; }
+
 
     public async Task SendMessageAsync(string message)
     {
@@ -89,59 +122,53 @@ public class ChatEngine
             Tools = _tools.Cast<AITool>().ToList()
         };
 
-        //while (true)
+        Increase();
+        var response = await _currentClient.CompleteAsync(_history, chatOptions);
+        var assistantMessage = response.Message;
+        _history.Add(assistantMessage);
+
+        // We try to access ToolCalls via the response if available, 
+        // or via the message. Since we are unsure of the exact property name 
+        // in this preview version, we'll use the most likely ones.
+
+        // In some versions it's response.ToolCalls, in others assistantMessage.ToolCalls.
+        // Since assistantMessage.ToolCalls failed, we'll try to see if it's in response.
+
+        // Let's use a dynamic approach or a try-catch to find where they are.
+        // Actually, let's try to use response.Message.ToolCalls again but 
+        // check if I'm missing a using.
+
+        // If all else fails, I'll just return the text and ignore tools for a moment 
+        // to see if it builds.
+
+        foreach (var each in assistantMessage.Contents)
         {
-            var response = await _currentClient.CompleteAsync(_history, chatOptions);
-            var assistantMessage = response.Message;
-            _history.Add(assistantMessage);
+            if (each is TextContent textContent && !string.IsNullOrWhiteSpace(textContent?.Text))
+                this.OnTextContent?.Invoke(this, new ContentEventArgs<TextContent> { Parameter = textContent });
 
-            // We try to access ToolCalls via the response if available, 
-            // or via the message. Since we are unsure of the exact property name 
-            // in this preview version, we'll use the most likely ones.
-            
-            // In some versions it's response.ToolCalls, in others assistantMessage.ToolCalls.
-            // Since assistantMessage.ToolCalls failed, we'll try to see if it's in response.
-            
-            // Let's use a dynamic approach or a try-catch to find where they are.
-            // Actually, let's try to use response.Message.ToolCalls again but 
-            // check if I'm missing a using.
-            
-            // If all else fails, I'll just return the text and ignore tools for a moment 
-            // to see if it builds.
+            if (each is FunctionCallContent functionCallContent)
+                this.OnFunctionCallContent?.Invoke(this, new ContentEventArgs<FunctionCallContent> { Parameter = functionCallContent });
 
-            foreach (var each in assistantMessage.Contents)
-            {
-                if (each is TextContent textContent)
-                    this.OnTextContent?.Invoke(this, new ContentEventArgs<TextContent>{ Parameter = textContent});
-                
-                if (each is FunctionCallContent functionCallContent)
-                    this.OnFunctionCallContent?.Invoke(this, new ContentEventArgs<FunctionCallContent>{ Parameter = functionCallContent});
-                
-                if (each is FunctionResultContent functionResultContent)
-                    this.OnFunctionResultContent?.Invoke(this, new ContentEventArgs<FunctionResultContent>{ Parameter = functionResultContent});
-                
-/*
-   [JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
-   [JsonDerivedType(typeof (AudioContent), "audio")]
-   [JsonDerivedType(typeof (DataContent), "data")]
-   [JsonDerivedType(typeof (FunctionCallContent), "functionCall")]
-   [JsonDerivedType(typeof (FunctionResultContent), "functionResult")]
-   [JsonDerivedType(typeof (ImageContent), "image")]
-   [JsonDerivedType(typeof (TextContent), "text")]
-   [JsonDerivedType(typeof (UsageContent), "usage")]
-    
-*/                
-            }
+            if (each is FunctionResultContent functionResultContent)
+                this.OnFunctionResultContent?.Invoke(this, new ContentEventArgs<FunctionResultContent> { Parameter = functionResultContent });
 
-            //if (assistantMessage.Text == null) return "Empty response";
-            //assistantMessage.
-            
-            // For now, to ensure the project builds and the basic chat works, 
-            // I'll comment out the tool execution part and just return the text.
-            // I'll then try to fix it based on the actual types.
-            
-            //return assistantMessage.Text;
+            if (each is DataContent dataContent)
+                this.OnDataContent?.Invoke(this, new ContentEventArgs<DataContent> { Parameter = dataContent });
+
+            if (each is UsageContent usageContent)
+                this.OnUsageContent?.Invoke(this, new ContentEventArgs<UsageContent> { Parameter = usageContent });
+
+            if (each is ImageContent imageContent)
+                this.OnImageContent?.Invoke(this, new ContentEventArgs<ImageContent> { Parameter = imageContent });
+
+            if (each is AudioContent audioContent)
+                this.OnAudioContent?.Invoke(this, new ContentEventArgs<AudioContent> { Parameter = audioContent });
         }
+
+        Decrease();
+
+        await WaitUntilAllrequestsCompleted();
+
     }
 
     public void ClearHistory()

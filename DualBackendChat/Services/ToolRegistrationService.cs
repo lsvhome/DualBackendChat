@@ -38,7 +38,7 @@ public class ToolRegistrationService
             {
                 var func = new SimpleAIFunction(
                     method.Name,
-                    async (args) => 
+                    async (args) =>
                     {
                         var parameters = method.GetParameters();
                         object[] methodArgs = new object[parameters.Length];

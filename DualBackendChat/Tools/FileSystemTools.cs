@@ -12,7 +12,7 @@ public class FileSystemTools
     {
         _sandboxRoot = settings.SandboxRoot;
         _enableRiskyTools = true; // settings.EnableRiskyTools;
-        
+
         if (!Directory.Exists(_sandboxRoot))
         {
             Directory.CreateDirectory(_sandboxRoot);
@@ -86,7 +86,7 @@ public class FileSystemTools
     {
         return Directory.GetCurrentDirectory();
     }
-    
+
     // Example of a risky tool
     [OllamaTool]
     public string ExecuteShellCommand(string command)

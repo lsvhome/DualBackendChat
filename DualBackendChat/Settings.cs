@@ -2,16 +2,16 @@ namespace DualBackendChat;
 
 public class AppSettings
 {
-    public ProviderSettings Ollama { get; set; } = new() 
-    { 
-        BaseUrl = "http://localhost:11434/v1", 
+    public ProviderSettings Ollama { get; set; } = new()
+    {
+        BaseUrl = "http://localhost:11434/v1",
         ModelId = "gemma4-dev:latest",
-        ApiKey = "ollama" 
+        ApiKey = "ollama"
     };
-    
-    public ProviderSettings Llama { get; set; } = new() 
-    { 
-        BaseUrl = "http://localhost:8080/v1", 
+
+    public ProviderSettings Llama { get; set; } = new()
+    {
+        BaseUrl = "http://localhost:8080/v1",
         ModelId = "llama-model",
         ApiKey = "llama"
     };

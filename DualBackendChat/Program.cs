@@ -81,34 +81,29 @@ class Program
                     Console.WriteLine($"\nAssistant > {args.Parameter.Text}");
                     return Task.CompletedTask;
                 };
-                
+
                 chatEngine.OnFunctionCallContent += async (sender, args) =>
                 {
                     ContentEventArgs<FunctionCallContent> eventArgs = (ContentEventArgs<FunctionCallContent>)args;
-                    
+
                     ChatEngine senderEngine = (ChatEngine)sender;
                     try
                     {
                         Console.WriteLine($"\nRequested function call {eventArgs.Parameter.Name}");
-                        var fff = tools.Single(t => t.Metadata.Name == eventArgs.Parameter.Name);
-                        var ggg = await fff.InvokeAsync(eventArgs.Parameter.Arguments);
-                        var gggasda = new FunctionResultContent(eventArgs.Parameter, ggg, null);
-                        Console.WriteLine($"\nRequested function result is  {ggg}");
-                        await senderEngine.SendMessageAsync(new ChatMessage(ChatRole.Tool, new[] { gggasda }));
-
+                        var task = tools.Single(t => t.Metadata.Name == eventArgs.Parameter.Name);
+                        var taskResult = await task.InvokeAsync(eventArgs.Parameter.Arguments);
+                        var functionResultContent = new FunctionResultContent(eventArgs.Parameter, taskResult, null);
+                        Console.WriteLine($"\nRequested function {eventArgs.Parameter.Name} result is  {taskResult}");
+                        await senderEngine.SendMessageAsync(new ChatMessage(ChatRole.Tool, new[] { functionResultContent }));
                     }
                     catch (Exception ex)
                     {
-                        var gggasda = new FunctionResultContent(eventArgs.Parameter, null, ex);
-                        await senderEngine.SendMessageAsync(new ChatMessage(ChatRole.Tool, new[] { gggasda }));
-
+                        var functionExceptionResultContent = new FunctionResultContent(eventArgs.Parameter, null, ex);
+                        await senderEngine.SendMessageAsync(new ChatMessage(ChatRole.Tool, new[] { functionExceptionResultContent }));
                     }
-                    
                 };
 
-                Console.WriteLine($"\nAssistant >");
                 await chatEngine.SendMessageAsync(input);
-                await Task.Delay(TimeSpan.FromSeconds(60));
             }
             catch (Exception ex)
             {
