@@ -106,6 +106,10 @@ public class ChatEngine
 
     //public EventHandler<ContentEventArgs<AIContent>> OnAIContent { get; set; }
 
+    public async Task AddMessageAsync(ChatMessage message)
+    {
+        _history.Add(message);
+    }
 
     public async Task SendMessageAsync(string message)
     {
@@ -114,6 +118,7 @@ public class ChatEngine
 
     public async Task SendMessageAsync(ChatMessage message)
     {
+
         //_history.Add(new ChatMessage(ChatRole.User, message));
         _history.Add(message);
 

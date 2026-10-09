@@ -7,18 +7,28 @@ namespace DualBackendChat.Services;
 public class SimpleAIFunction : AIFunction
 {
     private readonly Func<string, Task<string>> _func;
-    private readonly string _description;
 
-    public SimpleAIFunction(string description, Func<string, Task<string>> func)
+    public SimpleAIFunction(MethodInfo method, object toolInstance)
     {
-        _description = description;
-        _func = func;
-        this.Metadata = new AIFunctionMetadata(_description)
+        _func = async (args) =>
         {
-            Name = _description,
-            Parameters = new List<AIFunctionParameterMetadata>(),
+            var parameters = method.GetParameters();
+            object[] methodArgs = new object[parameters.Length];
+            if (parameters.Length > 0)
+            {
+                methodArgs[0] = args.Trim('"');
+            }
+
+            var result = method.Invoke(toolInstance, methodArgs);
+            return result?.ToString() ?? "";
+        };
+
+        this.Metadata = new AIFunctionMetadata(method.Name)
+        {
+            Name = method.Name,
+            Description = method.Name,
+            Parameters = method.GetParameters().Select(p => new AIFunctionParameterMetadata(p.Name) { IsRequired = true, ParameterType = p.ParameterType }).ToList(),
             ReturnParameter = new AIFunctionReturnParameterMetadata() { ParameterType = typeof(string) },
-            Description = _description
         };
     }
 
@@ -43,33 +53,7 @@ public class ToolRegistrationService
         {
             if (method.GetCustomAttribute<OllamaToolAttribute>() != null)
             {
-                var func = new SimpleAIFunction(
-                    method.Name,
-                    async (args) =>
-                    {
-                        var parameters = method.GetParameters();
-                        object[] methodArgs = new object[parameters.Length];
-                        if (parameters.Length > 0)
-                        {
-                            methodArgs[0] = args.Trim('"');
-                        }
-                        var result = method.Invoke(toolInstance, methodArgs);
-                        return result?.ToString() ?? "";
-                    }
-                )
-                {
-                    Metadata = { Parameters = method.GetParameters().Select(p => new AIFunctionParameterMetadata(p.Name) { IsRequired = true }).ToList() }
-
-
-                };
-
-                method.GetParameters().Select(p => new AIFunctionParameterMetadata(p.Name) { IsRequired = true });
-
-                System.Diagnostics.Debug.Assert(func != null);
-                System.Diagnostics.Debug.Assert(func.Metadata != null);
-                System.Diagnostics.Debug.Assert(func.Metadata.Parameters != null);
-                System.Diagnostics.Debug.Assert(func.Metadata.Parameters. != null);
-                functions.Add(func);
+                functions.Add(new SimpleAIFunction(method, toolInstance));
             }
         }
 
